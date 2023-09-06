@@ -128,7 +128,11 @@ def openai_request(
     :param timeout: The timeout length of the request. The default is 30s.
     :param read_response: Whether to read the response as JSON. The default is True.
     """
-    response = requests.request("POST", url, headers=headers, data=json.dumps(payload), timeout=timeout, **kwargs)
+    proxies = {}
+    if "HTTPS_PROXY" in os.environ:
+        proxies['https'] = os.environ["HTTPS_PROXY"]
+        proxies['http'] = os.environ["HTTP_PROXY"]
+    response = requests.request("POST", url, headers=headers, data=json.dumps(payload), timeout=timeout, proxies=proxies, **kwargs)
     if read_response:
         json_response = json.loads(response.text)
 
