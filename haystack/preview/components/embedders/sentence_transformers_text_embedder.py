@@ -1,7 +1,7 @@
 from typing import List, Optional, Union, Dict, Any
 
 from haystack.preview import component, default_to_dict, default_from_dict
-from haystack.preview.embedding_backends.sentence_transformers_backend import (
+from haystack.preview.components.embedders.backends.sentence_transformers_backend import (
     _SentenceTransformersEmbeddingBackendFactory,
 )
 
@@ -26,11 +26,13 @@ class SentenceTransformersTextEmbedder:
         """
         Create a SentenceTransformersTextEmbedder component.
 
-        :param model_name_or_path: Local path or name of the model in Hugging Face's model hub, such as ``'sentence-transformers/all-mpnet-base-v2'``.
-        :param device: Device (like 'cuda' / 'cpu') that should be used for computation. If None, checks if a GPU can be used.
+        :param model_name_or_path: Local path or name of the model in Hugging Face's model hub,
+            such as ``'sentence-transformers/all-mpnet-base-v2'``.
+        :param device: Device (like 'cuda' / 'cpu') that should be used for computation.
+            Defaults to CPU.
         :param use_auth_token: The API token used to download private models from Hugging Face.
-                        If this parameter is set to `True`, then the token generated when running
-                        `transformers-cli login` (stored in ~/.huggingface) will be used.
+            If this parameter is set to `True`, then the token generated when running
+            `transformers-cli login` (stored in ~/.huggingface) will be used.
         :param prefix: A string to add to the beginning of each text.
         :param suffix: A string to add to the end of each text.
         :param batch_size: Number of strings to encode at once.
@@ -80,22 +82,22 @@ class SentenceTransformersTextEmbedder:
                 model_name_or_path=self.model_name_or_path, device=self.device, use_auth_token=self.use_auth_token
             )
 
-    @component.output_types(embeddings=List[List[float]])
-    def run(self, texts: List[str]):
-        """Embed a list of strings."""
-        if not isinstance(texts, list) or not isinstance(texts[0], str):
+    @component.output_types(embedding=List[float])
+    def run(self, text: str):
+        """Embed a string."""
+        if not isinstance(text, str):
             raise TypeError(
-                "SentenceTransformersTextEmbedder expects a list of strings as input."
+                "SentenceTransformersTextEmbedder expects a string as input."
                 "In case you want to embed a list of Documents, please use the SentenceTransformersDocumentEmbedder."
             )
         if not hasattr(self, "embedding_backend"):
             raise RuntimeError("The embedding model has not been loaded. Please call warm_up() before running.")
 
-        texts_to_embed = [self.prefix + text + self.suffix for text in texts]
-        embeddings = self.embedding_backend.embed(
-            texts_to_embed,
+        text_to_embed = self.prefix + text + self.suffix
+        embedding = self.embedding_backend.embed(
+            [text_to_embed],
             batch_size=self.batch_size,
             show_progress_bar=self.progress_bar,
             normalize_embeddings=self.normalize_embeddings,
-        )
-        return {"embeddings": embeddings}
+        )[0]
+        return {"embedding": embedding}

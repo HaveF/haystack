@@ -1,7 +1,7 @@
 from typing import List, Optional, Union, Dict, Any
 
 from haystack.preview import component, Document, default_to_dict, default_from_dict
-from haystack.preview.embedding_backends.sentence_transformers_backend import (
+from haystack.preview.components.embedders.backends.sentence_transformers_backend import (
     _SentenceTransformersEmbeddingBackendFactory,
 )
 
@@ -18,6 +18,8 @@ class SentenceTransformersDocumentEmbedder:
         model_name_or_path: str = "sentence-transformers/all-mpnet-base-v2",
         device: Optional[str] = None,
         use_auth_token: Union[bool, str, None] = None,
+        prefix: str = "",
+        suffix: str = "",
         batch_size: int = 32,
         progress_bar: bool = True,
         normalize_embeddings: bool = False,
@@ -27,11 +29,15 @@ class SentenceTransformersDocumentEmbedder:
         """
         Create a SentenceTransformersDocumentEmbedder component.
 
-        :param model_name_or_path: Local path or name of the model in Hugging Face's model hub, such as ``'sentence-transformers/all-mpnet-base-v2'``.
-        :param device: Device (like 'cuda' / 'cpu') that should be used for computation. If None, checks if a GPU can be used.
+        :param model_name_or_path: Local path or name of the model in Hugging Face's model hub,
+            such as ``'sentence-transformers/all-mpnet-base-v2'``.
+        :param device: Device (like 'cuda' / 'cpu') that should be used for computation.
+            Defaults to CPU.
         :param use_auth_token: The API token used to download private models from Hugging Face.
-                        If this parameter is set to `True`, then the token generated when running
-                        `transformers-cli login` (stored in ~/.huggingface) will be used.
+            If this parameter is set to `True`, then the token generated when running
+            `transformers-cli login` (stored in ~/.huggingface) will be used.
+        :param prefix: A string to add to the beginning of each Document text before embedding.
+        :param suffix: A string to add to the end of each Document text before embedding.
         :param batch_size: Number of strings to encode at once.
         :param progress_bar: If true, displays progress bar during embedding.
         :param normalize_embeddings: If set to true, returned vectors will have length 1.
@@ -43,6 +49,8 @@ class SentenceTransformersDocumentEmbedder:
         # TODO: remove device parameter and use Haystack's device management once migrated
         self.device = device or "cpu"
         self.use_auth_token = use_auth_token
+        self.prefix = prefix
+        self.suffix = suffix
         self.batch_size = batch_size
         self.progress_bar = progress_bar
         self.normalize_embeddings = normalize_embeddings
@@ -58,6 +66,8 @@ class SentenceTransformersDocumentEmbedder:
             model_name_or_path=self.model_name_or_path,
             device=self.device,
             use_auth_token=self.use_auth_token,
+            prefix=self.prefix,
+            suffix=self.suffix,
             batch_size=self.batch_size,
             progress_bar=self.progress_bar,
             normalize_embeddings=self.normalize_embeddings,
@@ -87,7 +97,7 @@ class SentenceTransformersDocumentEmbedder:
         Embed a list of Documents.
         The embedding of each Document is stored in the `embedding` field of the Document.
         """
-        if not isinstance(documents, list) or not isinstance(documents[0], Document):
+        if not isinstance(documents, list) or documents and not isinstance(documents[0], Document):
             raise TypeError(
                 "SentenceTransformersDocumentEmbedder expects a list of Documents as input."
                 "In case you want to embed a list of strings, please use the SentenceTransformersTextEmbedder."
@@ -104,7 +114,9 @@ class SentenceTransformersDocumentEmbedder:
                 for key in self.metadata_fields_to_embed
                 if key in doc.metadata and doc.metadata[key]
             ]
-            text_to_embed = self.embedding_separator.join(meta_values_to_embed + [doc.content])
+            text_to_embed = (
+                self.prefix + self.embedding_separator.join(meta_values_to_embed + [doc.text or ""]) + self.suffix
+            )
             texts_to_embed.append(text_to_embed)
 
         embeddings = self.embedding_backend.embed(
